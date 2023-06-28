@@ -1,0 +1,28 @@
+{
+  "locales": {
+    "en": {
+      "commands": [
+        {
+          "name": "/start",
+          "description": "Initiates a conversation with the bot"
+        },
+        {
+          "name": "/help",
+          "description": "Displays help information"
+        }
+      ]
+    },
+    "es": {
+      "commands": [
+        {
+          "name": "/start",
+          "description": "Inicia una conversación con el bot"
+        },
+        {
+          "name": "/help",
+          "description": "Muestra información de ayuda"
+        }
+      ]
+    }
+  }
+}
