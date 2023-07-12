@@ -11,18 +11,6 @@
           "description": "Displays help information"
         }
       ]
-    },
-    "es": {
-      "commands": [
-        {
-          "name": "/start",
-          "description": "Inicia una conversación con el bot"
-        },
-        {
-          "name": "/help",
-          "description": "Muestra información de ayuda"
-        }
-      ]
     }
   }
 }
