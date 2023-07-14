@@ -6,6 +6,6 @@
  Bot takes all the game data from [DOTABUFF](https://www.dotabuff.com/)
  
  ## Screenshots
-![Screenshot 1](images/Screen1.png)
-![Screenshot 2](images/Screen2.png)
-![Screenshot 3](images/Screen3.png)
+![Screenshot 1](image/Screen1.png)
+![Screenshot 2](image/Screen2.png)
+![Screenshot 3](image/Screen3.png)
