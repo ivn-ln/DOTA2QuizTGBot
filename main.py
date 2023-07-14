@@ -271,8 +271,7 @@ async def get_build(message: types.Message):
     try:
         current_attempt_count = MAX_ATTEMPT_COUNT
         random_hero = get_random_hero_id()
-        matches_list = DotaBuffTools.get_hero_recent_match_data(50, get_hero_as_http_parameter(random_hero),
-                                                                game_mode='turbo')
+        matches_list = DotaBuffTools.get_hero_recent_match_data(50, get_hero_as_http_parameter(random_hero))
         matches_ids = list(matches_list.keys())
         random_match_number = random.Random().randint(0, matches_ids.__len__()-1)
         id = list(matches_ids)[random_match_number]
@@ -293,7 +292,8 @@ async def get_build(message: types.Message):
         item_image_list = [types.InputMediaPhoto(itemdict[item]['image'], caption=itemdict[item]["name"])
                            for item in matches_list[id]["itembuild"]]
         item_name_list = "".join(str(item) + ' || ' for item in item_name_list).removesuffix(' || ')
-        await message.answer(f"Game mode: <b>{matches_list[id]['game_mode']['mode']}</b>\n"
+        await message.answer(f"Game mode: <b>{matches_list[id]['game_mode']['mode']}"
+                             f", {matches_list[id]['game_mode']['lobby']}</b>\n"
                              f"Game duration: <b>{matches_list[id]['duration']}</b>\n"
                              f"Items: <b>{item_name_list}</b>", parse_mode='html', reply_markup=keyboard)
         await message.answer_media_group(item_image_list)

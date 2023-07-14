@@ -77,8 +77,9 @@ class DotaBuffTools:
                     continue
 
                 game_mode_cell = tr.find_all("td")[1]
-                mode = game_mode if game_mode else game_mode_cell.text.split("<div")[0].strip()
-                lobby = lobby if lobby else game_mode_cell.find("div").text.strip()
+                lobby = lobby.title() if lobby else game_mode_cell.find("div").text.strip()
+                mode = game_mode.title() if game_mode\
+                    else game_mode_cell.text.split("<div")[0].strip().replace(lobby, '')
 
                 result = tr.find_all("td")[2].find("a").text.strip()
                 region = region if region else tr.find_all("td")[2].find("div").text.strip()
