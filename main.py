@@ -18,7 +18,7 @@ HELP_TEXT = "".join(command_description['name'] + " " + command_description['des
                     for command_description in COMMANDS)
 ITEMS_JSON_PATH = 'JSON Files/items.json'
 HEROES_JSON_PATH = 'JSON Files/heroes.json'
-MAX_ROW_AMOUNT = 8
+MAX_ROW_AMOUNT = 4
 MAX_ATTEMPT_COUNT = 2
 
 
@@ -33,12 +33,14 @@ current_match = ""
 settings_text = f"""
 /language <b>Current: {language}.</b> Change app language
 /options_amount <b>Current: {answer_options_amount}.</b> Change options amount given for a question
+(also changes attempts amount)
 /single_page_mode <b>Current: {single_page_mode}.</b> Change whether to delete previous messages when showing new page
 """
 listening_for_setting = ""
 best_score = 0
 current_score = 0
 current_attempt_count = 0
+command_buffer = {}
 
 
 def single_page(func):
@@ -56,9 +58,10 @@ def single_page(func):
 def check_game_state(desired_state: bool, *args, **kwargs):
     def decorator(func):
         async def wrapper(message: types.Message, *a, **kw):
-            global game_active
+            global game_active, command_buffer
             if desired_state is False:
                 if game_active:
+                    command_buffer = func
                     await message.answer("Cannot execute if the game is active, type /quit_game to stop the game")
                 else:
                     await func(message, *args, **kwargs)
@@ -175,9 +178,12 @@ async def clear(message):
 @DISPATCHER.message_handler(commands=["quit_game"])
 @check_game_state(desired_state=True)
 async def quit_game(message: types.Message):
-    global current_attempt_count
+    global current_attempt_count, command_buffer
     current_attempt_count = 0
     await check_attempts(message)
+    if command_buffer != {}:
+        await command_buffer(message)
+        command_buffer = {}
 
 
 @DISPATCHER.message_handler()
@@ -212,7 +218,7 @@ async def get_setting_value(message: types.Message):
                 options_amount = min(max(1, int(message.text)), list(herodict.keys()).__len__())
                 answer_options_amount = options_amount
                 global MAX_ATTEMPT_COUNT
-                MAX_ATTEMPT_COUNT = answer_options_amount//4
+                MAX_ATTEMPT_COUNT = answer_options_amount//3
                 await message.answer('Option changed successfully!', reply_markup=keyboard)
             except:
                 await message.answer('Invalid number', reply_markup=keyboard)
@@ -328,6 +334,7 @@ def get_hero_name(hero_id):
 
 
 def set_answer_keyboard_layout(keyboard: types.ReplyKeyboardMarkup, random_heroes_options: list):
+    random_heroes_options.sort()
     match answer_options_amount:
         case 2:
             keyboard.row()
