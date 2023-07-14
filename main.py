@@ -53,19 +53,18 @@ def single_page(func):
     return wrapper
 
 
-def check_game_state(desired_state: bool):
+def check_game_state(desired_state: bool, *args, **kwargs):
     def decorator(func):
-        async def wrapper(*args, **kwargs):
+        async def wrapper(message: types.Message, *a, **kw):
             global game_active
-            message = args[0]
             if desired_state is False:
                 if game_active:
                     await message.answer("Cannot execute if the game is active, type /quit_game to stop the game")
                 else:
-                    await func(*args)
+                    await func(message, *args, **kwargs)
             else:
                 if game_active:
-                    await func(*args)
+                    await func(message, *args, **kwargs)
                 else:
                     await message.answer("Cannot execute if the game is inactive, type /game to start the game")
         return wrapper
@@ -81,6 +80,7 @@ async def start_command(message: types.Message):
     keyboard.add(types.KeyboardButton('/settings'))
     await message.answer(START_TEXT, reply_markup=keyboard, parse_mode='html')
     await message.answer(HELP_TEXT)
+
 
 @DISPATCHER.message_handler(commands=['attempts'])
 @check_game_state(desired_state=True)
@@ -147,7 +147,7 @@ async def next_question(message, change_score=True):
     await answer_correct_hero(message)
     if change_score:
         current_score += 100 * max(1, current_attempt_count)
-        await message.answer(f'Score: <b>{current_score}</b>', parse_mode='html')
+    await message.answer(f'Score: <b>{current_score}</b>', parse_mode='html')
     await get_build(message)
 
 
@@ -155,8 +155,9 @@ async def next_question(message, change_score=True):
 @check_game_state(desired_state=True)
 async def skip_command(message: types.Message):
     global current_score
-    current_score -= 100 * (MAX_ATTEMPT_COUNT - current_attempt_count)
-    await message.answer(f'<b>Skip penalty -300</b>\nScore: <b>{current_score}</b>', parse_mode='html')
+    current_score -= 300 + 100 * (MAX_ATTEMPT_COUNT - current_attempt_count) + 100 * max(1, current_attempt_count)
+    await message.answer(f'<b>Skip penalty {300 + 100 * (MAX_ATTEMPT_COUNT - current_attempt_count)}</b>',
+                         parse_mode='html')
     await next_question(message, change_score=False)
 
 
@@ -291,7 +292,9 @@ async def get_build(message: types.Message):
                              f"Items: <b>{item_name_list}</b>", parse_mode='html', reply_markup=keyboard)
         await message.answer_media_group(item_image_list)
     except Exception as e:
+        global current_score
         await message.answer(f"Sorry, an error has occurred. Error: {e}")
+        current_score -= 100 * max(1, current_attempt_count)
         await next_question(message, change_score=False)
         logging.log(logging.CRITICAL, f"Error: {e}")
 
