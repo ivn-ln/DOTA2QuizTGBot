@@ -1,5 +1,4 @@
 # DOTA2QuizTGBot
-![LOGO](image/LOGO.png)
 # DOTA2QuizTGBot [<img src="/Image/LOGO.png" width="30" />](Image/LOGO.png)
 ## [Bot Telegram Link](https://t.me/DOTA2QuizTGBOT)
 
