@@ -1,0 +1,40 @@
+{
+  "locales": {
+    "en": {
+      "commands": [
+        {
+          "name": "/game",
+          "description": "Starts the game"
+        },
+        {
+          "name": "/best_score",
+          "description": "Displays your best score"
+        },
+        {
+          "name": "/start",
+          "description": "Opens starting page"
+        },
+        {
+          "name": "/settings",
+          "description": "Opens settings page"
+        },
+        {
+          "name": "/skip",
+          "description": "Skips current question"
+        },
+        {
+          "name": "/attempts",
+          "description": "Displays your remaining attempts"
+        },
+        {
+          "name": "/quit_game",
+          "description": "Closes the game"
+        },
+        {
+          "name": "/clear",
+          "description": "Deletes previous chat messages"
+        }
+      ]
+    }
+  }
+}
