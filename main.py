@@ -55,7 +55,7 @@ def single_page(func):
 
 def check_game_state(desired_state: bool):
     def decorator(func):
-        async def wrapper(*args):
+        async def wrapper(*args, **kwargs):
             global game_active
             message = args[0]
             if desired_state is False:
@@ -82,14 +82,14 @@ async def start_command(message: types.Message):
     await message.answer(START_TEXT, reply_markup=keyboard, parse_mode='html')
     await message.answer(HELP_TEXT)
 
-@check_game_state(desired_state=True)
 @DISPATCHER.message_handler(commands=['attempts'])
-async def best_score(message: types.Message):
+@check_game_state(desired_state=True)
+async def attempts(message: types.Message):
     await message.answer(f'You have <b>{current_attempt_count} attempts</b> left!', parse_mode='html')
 
 
 @DISPATCHER.message_handler(commands=['best_score'])
-async def best_score(message: types.Message):
+async def best_score_command(message: types.Message):
     await message.answer(f'Your current best score is <b>{best_score}</b>!', parse_mode='html')
 
 
@@ -153,9 +153,9 @@ async def next_question(message, change_score=True):
 
 @DISPATCHER.message_handler(commands=["skip"])
 @check_game_state(desired_state=True)
-async def skip(message: types.Message):
+async def skip_command(message: types.Message):
     global current_score
-    current_score -= 300
+    current_score -= 100 * (MAX_ATTEMPT_COUNT - current_attempt_count)
     await message.answer(f'<b>Skip penalty -300</b>\nScore: <b>{current_score}</b>', parse_mode='html')
     await next_question(message, change_score=False)
 
