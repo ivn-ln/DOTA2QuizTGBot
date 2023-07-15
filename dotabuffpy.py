@@ -1,6 +1,9 @@
 from requests_html import HTMLSession
 from bs4 import BeautifulSoup
 import logging
+import cv2 as cv
+import numpy as np
+import urllib.request
 
 
 class DotaBuffTools:
@@ -22,12 +25,15 @@ class DotaBuffTools:
                     a = td.find('a')
                     if a and 'href' in a.attrs:
                         item_id = a['href']
+                        image_url = dotabuff_url + tr.find('td', class_='cell-icon').img['src']
+                        image = get_image_from_url(image_url).tolist()
                         item_info = {
                             "name": a.text.strip(),
-                            "image": dotabuff_url + tr.find('td', class_='cell-icon').img['src']
+                            "image_url": image_url,
+                            "image": image
                         }
                         item_dict[item_id] = item_info
-        logging.log(logging.INFO, "Item base loaded")
+        logging.log(logging.INFO, "Item base downloaded")
         return item_dict
 
     @staticmethod
@@ -47,13 +53,15 @@ class DotaBuffTools:
                     soup = BeautifulSoup(tooltip_response.html.html, 'html.parser')
                     image_url = dotabuff_url + soup.a.img['src']
                     main_attribute = soup.find(class_="tooltip-header").find(class_="subheader").text.split(" Hero")[0].strip()
+                    image = get_image_from_url(image_url).tolist()
                     hero_info = {
                         "name": a.find(class_="name").text.strip(),
-                        "image": image_url,
+                        "image_url": image_url,
+                        "image": image,
                         "main_attribute": main_attribute
                     }
                     hero_dict[hero_id] = hero_info
-        logging.log(logging.INFO, "Hero base loaded")
+        logging.log(logging.INFO, "Hero base downloaded")
         return hero_dict
 
     @staticmethod
@@ -103,3 +111,11 @@ class DotaBuffTools:
                 matches[match_id] = match_data
 
         return matches
+
+
+def get_image_from_url(image_url):
+    request = urllib.request.Request(image_url, headers={'User-agent': 'DOTA2 Telegram Quiz Bot'})
+    response = urllib.request.urlopen(request)
+    arr = np.asarray(bytearray(response.read()), dtype=np.uint8)
+    image = cv.imdecode(arr, -1)
+    return image

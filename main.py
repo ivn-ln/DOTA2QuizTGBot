@@ -1,9 +1,15 @@
 import random
+
+import aiogram.types
+import numpy
 from aiogram import types, Bot, Dispatcher, executor
 from api_token import API_TOKEN
 import logging
 import json
 from dotabuffpy import DotaBuffTools
+from jsontools import JsonTools
+import cv2 as cv
+import numpy as np
 
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -29,6 +35,7 @@ answer_options_amount = 8
 language = "en"
 single_page_mode = True
 current_hero = ""
+current_items = []
 current_match = ""
 settings_text = f"""
 /language <b>Current: {language}.</b> Change app language
@@ -228,12 +235,6 @@ async def get_setting_value(message: types.Message):
     listening_for_setting = ""
 
 
-def update_json():
-    global herodict, itemdict
-    itemdict = DotaBuffTools.get_dota2_item_data()
-    herodict = DotaBuffTools.get_dota2_hero_data()
-
-
 async def check_attempts(message: types.Message):
     global current_attempt_count, best_score, current_score, game_active
     current_attempt_count -= 1
@@ -267,7 +268,7 @@ async def delete_previous_messages(message):
 
 @single_page
 async def get_build(message: types.Message):
-    global current_hero, current_match, current_attempt_count
+    global current_hero, current_match, current_attempt_count, current_items
     try:
         current_attempt_count = MAX_ATTEMPT_COUNT
         random_hero = get_random_hero_id()
@@ -289,14 +290,16 @@ async def get_build(message: types.Message):
         if not matches_list[id]["itembuild"]:
             await message.answer("Itembuild is empty")
         item_name_list = [itemdict[item]['name'] for item in matches_list[id]["itembuild"]]
-        item_image_list = [types.InputMediaPhoto(itemdict[item]['image'], caption=itemdict[item]["name"])
-                           for item in matches_list[id]["itembuild"]]
+        item_id_list = matches_list[id]["itembuild"]
+        current_items = item_id_list
+        build_image = generate_hero_items_image(item_id_list)
+        cv.imwrite('Image/build_image.jpg', build_image)
         item_name_list = "".join(str(item) + ' || ' for item in item_name_list).removesuffix(' || ')
         await message.answer(f"Game mode: <b>{matches_list[id]['game_mode']['mode']}"
                              f", {matches_list[id]['game_mode']['lobby']}</b>\n"
                              f"Game duration: <b>{matches_list[id]['duration']}</b>\n"
                              f"Items: <b>{item_name_list}</b>", parse_mode='html', reply_markup=keyboard)
-        await message.answer_media_group(item_image_list)
+        await message.answer_photo(types.InputFile('Image/build_image.jpg'))
     except Exception as e:
         global current_score
         await message.answer(f"Sorry, an error has occurred. Error: {e}")
@@ -360,17 +363,81 @@ async def answer_correct_hero(message: types.Message):
     match_url = 'www.dotabuff.com' + current_match
     keyboard.add(types.InlineKeyboardButton(text=f'Match {get_hero_as_http_parameter(current_match)}',
                                             url=match_url))
-    await message.answer_photo(herodict[current_hero]['image'],
+    build_image = generate_hero_items_image(current_items, current_hero)
+    cv.imwrite('Image/build_image.jpg', build_image)
+    await message.answer_photo(types.InputFile('Image/build_image.jpg'),
                                caption=f'The hero was <b>{herodict[current_hero]["name"]}</b>',
                                parse_mode='html', reply_markup=keyboard)
 
 
+def update_json(items_path, heroes_path, ignore_existing):
+    global herodict, itemdict
+    herodict = DotaBuffTools.get_dota2_hero_data()
+    JsonTools.add_dict_to_json(heroes_path, herodict, ignore_existing)
+    itemdict = DotaBuffTools.get_dota2_item_data()
+    JsonTools.add_dict_to_json(items_path, itemdict, ignore_existing)
+
+
+
+def load_json(items_path, heroes_path):
+    global herodict, itemdict
+    itemdict = DotaBuffTools.get_dota2_item_data()
+    herodict = DotaBuffTools.get_dota2_hero_data()
+    JsonTools.add_dict_to_json(items_path, itemdict)
+    JsonTools.add_dict_to_json(heroes_path, herodict)
+
+
+def generate_hero_items_image(items:list, hero='unknown'):
+    if hero == 'unknown':
+        hero_image = cv.imread('Image/unknown.png')
+    else:
+        hero_image = np.uint8(np.asarray(herodict[hero]['image']))
+    grid_rows = 3
+    grid_lines = 2
+    cell_margin_x = 10
+    cell_margin_y = 9
+    cell_size_x = 75
+    cell_size_y = 59
+    grid = cv.imread('Image/grid.png')
+    label = cv.imread('Image/label.png')
+    item_image_list = []
+    if items.__len__() > 0:
+        for item_name in items:
+            item_image = np.uint8(np.asarray(itemdict[item_name]['image']))
+            item_image_list.append(item_image)
+    item_number = 0
+    for l in range(grid_lines):
+        for r in range(grid_rows):
+            if item_number >= item_image_list.__len__():
+                break
+            item_image = item_image_list[item_number]
+            item_image = cv.resize(item_image, (cell_size_x - cell_margin_x + 1, cell_size_y - cell_margin_y + 1))
+            grid[cell_margin_y + cell_margin_y * l +
+                 cell_size_y * l:cell_size_y + cell_size_y * l + cell_margin_y * l + 1,
+                 cell_margin_x + cell_margin_x * r + cell_size_x * r:cell_size_x
+                 + cell_margin_x * r + cell_size_x * r + 1] = item_image
+            item_number += 1
+    hero_image = cv.resize(hero_image, [257, 144])
+    result = np.vstack([grid, label])
+    result = np.vstack([hero_image, result])
+    return result
+
+
 def main():
+    global herodict, itemdict
     try:
-        update_json()
-        executor.start_polling(DISPATCHER, skip_updates=True)
+        if input("To update heroes and items data print /update\n") == "/update":
+            ignore_existing = bool(input("Ignore existing?(Y/N)").lower() == "y")
+            update_json(ITEMS_JSON_PATH, HEROES_JSON_PATH, ignore_existing)
+            logging.log(logging.INFO, "JSON data Updated and loaded")
+        else:
+            itemdict = JsonTools.load_dict_from_json(ITEMS_JSON_PATH)
+            herodict = JsonTools.load_dict_from_json(HEROES_JSON_PATH)
+            logging.log(logging.INFO, "JSON data Loaded")
+            executor.start_polling(DISPATCHER, skip_updates=True)
     except Exception as e:
         logging.log(logging.CRITICAL, f"Error: {e}")
+    input()
 
 
 if __name__ == "__main__":
