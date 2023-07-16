@@ -1,7 +1,9 @@
 api_token.py
 
-/Image/build_image.jpg
-
 /JSON Files/heroes.json
 
 /JSON Files/items.json
+
+/JSON Files/users.json
+
+/Logs/logs.txt

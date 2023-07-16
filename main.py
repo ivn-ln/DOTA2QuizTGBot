@@ -1,22 +1,22 @@
-import random
-
-import aiogram.types
-import numpy
+import logging
 from aiogram import types, Bot, Dispatcher, executor
 from api_token import API_TOKEN
-import logging
 import json
 from dotabuffpy import DotaBuffTools
 from jsontools import JsonTools
+import random
 import cv2 as cv
 import numpy as np
+import atexit
+import os
 
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO,
+                    filename='Logs/logs.txt')
 BOT = Bot(API_TOKEN)
 DISPATCHER = Dispatcher(BOT)
-START_TEXT = """Welcome to the DOTA2 Quiz TG Bot!
-<b>To start the game type /game</b>"""
+START_TEXT = """<b>To start the game /game</b>
+<b>To view best score /best_score</b>"""
 with open('JSON Files/locales.json') as file:
     LOCALES_DATA = json.load(file)
 COMMANDS = LOCALES_DATA['locales']['en']['commands']
@@ -25,37 +25,19 @@ HELP_TEXT = "".join(command_description['name'] + " " + command_description['des
 ITEMS_JSON_PATH = 'JSON Files/items.json'
 HEROES_JSON_PATH = 'JSON Files/heroes.json'
 MAX_ROW_AMOUNT = 4
-MAX_ATTEMPT_COUNT = 2
 
 
 itemdict = {}
 herodict = {}
-game_active: bool = False
-answer_options_amount = 8
-language = "en"
-single_page_mode = True
-current_hero = ""
-current_items = []
-current_match = ""
-settings_text = f"""
-/language <b>Current: {language}.</b> Change app language
-/options_amount <b>Current: {answer_options_amount}.</b> Change options amount given for a question
-(also changes attempts amount)
-/single_page_mode <b>Current: {single_page_mode}.</b> Change whether to delete previous messages when showing new page
-"""
-listening_for_setting = ""
-best_score = 0
-current_score = 0
-current_attempt_count = 0
-command_buffer = {}
+user_data_dict = {}
 
 
 def single_page(func):
     async def wrapper(*args):
-        if single_page_mode is False:
+        message = args[0]
+        if user_data_dict[str(message.chat.id)]['single_page_mode'] is False:
             await func(*args)
             return
-        message = args[0]
         gen_message = await delete_previous_messages(message)
         await func(*args)
         await edit_gen_message(message, gen_message)
@@ -65,18 +47,27 @@ def single_page(func):
 def check_game_state(desired_state: bool, *args, **kwargs):
     def decorator(func):
         async def wrapper(message: types.Message, *a, **kw):
-            global game_active, command_buffer
-            if desired_state is False:
-                if game_active:
-                    command_buffer = func
-                    await message.answer("Cannot execute if the game is active, type /quit_game to stop the game")
+            global user_data_dict
+            try:
+                if desired_state is False:
+                    if user_data_dict[str(message.chat.id)]['game_active']:
+                        user_data_dict[str(message.chat.id)]['command_buffer'] = func
+                        await message.answer("Cannot execute if the game is active, type /quit_game to stop the game")
+                    else:
+                        await func(message, *args, **kwargs)
                 else:
-                    await func(message, *args, **kwargs)
-            else:
-                if game_active:
-                    await func(message, *args, **kwargs)
-                else:
-                    await message.answer("Cannot execute if the game is inactive, type /game to start the game")
+                    if user_data_dict[str(message.chat.id)]['game_active']:
+                        await func(message, *args, **kwargs)
+                    else:
+                        await message.answer("Cannot execute if the game is inactive, type /game to start the game")
+            except Exception as e:
+                logging.log(logging.CRITICAL, f"Error: {e}")
+                await check_user_exists(message)
+                keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+                keyboard.add(types.KeyboardButton('/game'))
+                keyboard.add(types.KeyboardButton('/settings'))
+                await message.answer(START_TEXT, reply_markup=keyboard, parse_mode='html')
+                await message.answer(HELP_TEXT)
         return wrapper
     return decorator
 
@@ -85,6 +76,7 @@ def check_game_state(desired_state: bool, *args, **kwargs):
 @check_game_state(desired_state=False)
 @single_page
 async def start_command(message: types.Message):
+    await check_user_exists(message)
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     keyboard.add(types.KeyboardButton('/game'))
     keyboard.add(types.KeyboardButton('/settings'))
@@ -95,12 +87,14 @@ async def start_command(message: types.Message):
 @DISPATCHER.message_handler(commands=['attempts'])
 @check_game_state(desired_state=True)
 async def attempts(message: types.Message):
-    await message.answer(f'You have <b>{current_attempt_count} attempts</b> left!', parse_mode='html')
+    await message.answer(f'You have <b>{user_data_dict[str(message.chat.id)]["current_attempt_count"]} attempts</b> left!',
+                         parse_mode='html')
 
 
 @DISPATCHER.message_handler(commands=['best_score'])
 async def best_score_command(message: types.Message):
-    await message.answer(f'Your current best score is <b>{best_score}</b>!', parse_mode='html')
+    await message.answer(f'Your current best score is <b>{user_data_dict[str(message.chat.id)]["best_score"]}</b>!',
+                         parse_mode='html')
 
 
 @DISPATCHER.message_handler(commands=['settings'])
@@ -112,13 +106,13 @@ async def settings(message: types.Message):
     keyboard.add(types.KeyboardButton('/language'))
     keyboard.add(types.KeyboardButton('/options_amount'))
     keyboard.add(types.KeyboardButton('/single_page_mode'))
-    await message.answer(settings_text, parse_mode='html', reply_markup=keyboard)
+    await message.answer(user_data_dict[str(message.chat.id)]["settings_text"], parse_mode='html', reply_markup=keyboard)
 
 
 @DISPATCHER.message_handler(commands=['language', 'options_amount', 'single_page_mode'])
 @check_game_state(desired_state=False)
 async def change_settings(message: types.Message):
-    global single_page_mode, listening_for_setting
+    global user_data_dict
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     keyboard.add(types.KeyboardButton('/back'))
     keyboard.add(types.KeyboardButton('/language'))
@@ -127,46 +121,50 @@ async def change_settings(message: types.Message):
     match message.get_command(True):
         case 'language':
             await message.answer('Type desired language: <i>en/ru</i>', parse_mode='html')
-            listening_for_setting = message.get_command(True)
+            user_data_dict[str(message.chat.id)]['listening_for_setting'] = message.get_command(True)
         case 'options_amount':
             await message.answer('Type desired options_amount: <i>number</i>', parse_mode='html')
-            listening_for_setting = message.get_command(True)
+            user_data_dict[str(message.chat.id)]['listening_for_setting'] = message.get_command(True)
         case 'single_page_mode':
-            if single_page_mode:
-                single_page_mode = False
+            if user_data_dict[str(message.chat.id)]['single_page_mode']:
+                user_data_dict[str(message.chat.id)]['single_page_mode'] = False
                 await message.answer('Single page mode is now <b>off</b>!', reply_markup=keyboard, parse_mode='html')
             else:
-                single_page_mode = True
+                user_data_dict[str(message.chat.id)]['single_page_mode'] = True
                 await message.answer('Single page mode is now <b>on</b>!', reply_markup=keyboard, parse_mode='html')
 
 
 @DISPATCHER.message_handler(commands=["game", 'retry'])
 @check_game_state(desired_state=False)
 async def game(message):
-    global game_active
-    game_active = True
+    global user_data_dict
+    user_data_dict[str(message.chat.id)]['game_active'] = True
     await get_build(message)
 
 
 @DISPATCHER.message_handler(commands=["next"])
 @check_game_state(desired_state=True)
 async def next_question(message, change_score=True):
-    global current_score, current_attempt_count
-    if current_attempt_count < 0:
+    global user_data_dict
+    if user_data_dict[str(message.chat.id)]['current_attempt_count'] < 0:
         return
     await answer_correct_hero(message)
     if change_score:
-        current_score += 100 * max(1, current_attempt_count)
-    await message.answer(f'Score: <b>{current_score}</b>', parse_mode='html')
+        user_data_dict[str(message.chat.id)]['current_score'] +=\
+            100 * max(1, user_data_dict[str(message.chat.id)]['current_attempt_count'])
+    await message.answer(f'Score: <b>{user_data_dict[str(message.chat.id)]["current_score"]}</b>', parse_mode='html')
     await get_build(message)
 
 
 @DISPATCHER.message_handler(commands=["skip"])
 @check_game_state(desired_state=True)
 async def skip_command(message: types.Message):
-    global current_score
-    current_score -= 300 + 100 * (MAX_ATTEMPT_COUNT - current_attempt_count) + 100 * max(1, current_attempt_count)
-    await message.answer(f'<b>Skip penalty {300 + 100 * (MAX_ATTEMPT_COUNT - current_attempt_count)}</b>',
+    global user_data_dict
+    user_data_dict[str(message.chat.id)]['current_score'] -=\
+        2 * max(100, 100 * (user_data_dict[str(message.chat.id)]['max_attempt_count']
+                            - user_data_dict[str(message.chat.id)]['current_attempt_count'])
+                + 100 * max(1, user_data_dict[str(message.chat.id)]['current_attempt_count']))
+    await message.answer(f"<b>Skip penalty: {2 * max(100, 100 *  (user_data_dict[str(message.chat.id)]['max_attempt_count'] - user_data_dict[str(message.chat.id)]['current_attempt_count']))}</b>",
                          parse_mode='html')
     await next_question(message, change_score=False)
 
@@ -185,75 +183,76 @@ async def clear(message):
 @DISPATCHER.message_handler(commands=["quit_game"])
 @check_game_state(desired_state=True)
 async def quit_game(message: types.Message):
-    global current_attempt_count, command_buffer
-    current_attempt_count = 0
+    global user_data_dict
+    user_data_dict[str(message.chat.id)]['current_attempt_count'] = 0
     await check_attempts(message)
-    if command_buffer != {}:
-        await command_buffer(message)
-        command_buffer = {}
+    if user_data_dict[str(message.chat.id)]['command_buffer'] != {}:
+        await user_data_dict[str(message.chat.id)]['command_buffer'](message)
+        user_data_dict[message.chat.id]['command_buffer'] = {}
 
 
 @DISPATCHER.message_handler()
 async def game_check_answer(message: types.Message):
-    if not game_active:
+    if not user_data_dict[str(message.chat.id)]['game_active']:
         await get_setting_value(message)
         return
-    if message.text == herodict[current_hero]["name"]:
+    if message.text == herodict[user_data_dict[str(message.chat.id)]['current_hero']]['name']:
         await next_question(message)
     else:
         await check_attempts(message)
 
 
 async def get_setting_value(message: types.Message):
-    global language, answer_options_amount, listening_for_setting
-    if listening_for_setting == "":
+    global user_data_dict
+    if user_data_dict[str(message.chat.id)]['listening_for_setting'] == "":
         return
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     keyboard.add(types.KeyboardButton('/back'))
     keyboard.add(types.KeyboardButton('/language'))
     keyboard.add(types.KeyboardButton('/options_amount'))
     keyboard.add(types.KeyboardButton('/single_page_mode'))
-    match listening_for_setting:
+    match user_data_dict[str(message.chat.id)]['listening_for_setting']:
         case 'language':
             if message.text.lower() in ['en', 'ru']:
-                language = message.text.lower()
+                user_data_dict[str(message.chat.id)]['language'] = message.text.lower()
                 await message.answer('Option changed successfully!', reply_markup=keyboard)
             else:
                 await message.answer('Invalid language', reply_markup=keyboard)
         case 'options_amount':
             try:
                 options_amount = min(max(1, int(message.text)), list(herodict.keys()).__len__())
-                answer_options_amount = options_amount
-                global MAX_ATTEMPT_COUNT
-                MAX_ATTEMPT_COUNT = answer_options_amount//3
+                user_data_dict[str(message.chat.id)]['answer_options_amount'] = options_amount
+                user_data_dict[str(message.chat.id)]['max_attempt_count'] = options_amount // 3
                 await message.answer('Option changed successfully!', reply_markup=keyboard)
             except:
                 await message.answer('Invalid number', reply_markup=keyboard)
         case _:
             await message.answer('Error, invalid setting!', reply_markup=keyboard)
             logging.log(logging.CRITICAL, 'Error, invalid setting received.')
-    listening_for_setting = ""
+    user_data_dict[str(message.chat.id)]['listening_for_setting'] = ""
 
 
 async def check_attempts(message: types.Message):
-    global current_attempt_count, best_score, current_score, game_active
-    current_attempt_count -= 1
-    if current_attempt_count > 0:
+    global user_data_dict
+    user_data_dict[str(message.chat.id)]['current_attempt_count'] -= 1
+    if user_data_dict[str(message.chat.id)]['current_attempt_count'] > 0:
         await message.answer(f'Sorry, it`s <b>not {message.text}</b>\n'
-                             f'Attempts left: <b>{current_attempt_count}</b>',
+                             f'Attempts left: <b>{user_data_dict[str(message.chat.id)]["current_attempt_count"]}</b>',
                              parse_mode='html')
     else:
-        game_active = False
+        user_data_dict[str(message.chat.id)]['game_active'] = False
         await answer_correct_hero(message)
         keyboard = types.ReplyKeyboardMarkup()
         keyboard.add(types.KeyboardButton('/retry'))
         keyboard.add(types.KeyboardButton('/quit'))
-        await message.answer(f"<b>Game Over!</b>\nScore: <b>{current_score}</b>",
+        await message.answer(f"<b>Game Over!</b>\nScore: <b>{user_data_dict[str(message.chat.id)]['current_score']}</b>",
                              reply_markup=keyboard, parse_mode='html')
-        if current_score > best_score:
+        if user_data_dict[str(message.chat.id)]['current_score'] > user_data_dict[str(message.chat.id)]['best_score']:
             await message.answer(f"<b>New best!</b>", parse_mode='html')
-        best_score = max(best_score, current_score)
-        current_score = 0
+        user_data_dict[str(message.chat.id)]['best_score'] = max(user_data_dict[str(message.chat.id)]['best_score'],
+                                                            user_data_dict[str(message.chat.id)]['current_score'])
+        user_data_dict[str(message.chat.id)]['current_score'] = 0
+        os.remove(f"Image/Build Images/{message.chat.id}.jpg")
 
 
 async def delete_previous_messages(message):
@@ -268,42 +267,44 @@ async def delete_previous_messages(message):
 
 @single_page
 async def get_build(message: types.Message):
-    global current_hero, current_match, current_attempt_count, current_items
+    global user_data_dict
     try:
-        current_attempt_count = MAX_ATTEMPT_COUNT
+        user_data_dict[str(message.chat.id)]['current_attempt_count'] = user_data_dict[str(message.chat.id)]['max_attempt_count']
         random_hero = get_random_hero_id()
         matches_list = DotaBuffTools.get_hero_recent_match_data(50, get_hero_as_http_parameter(random_hero))
         matches_ids = list(matches_list.keys())
         random_match_number = random.Random().randint(0, matches_ids.__len__()-1)
         id = list(matches_ids)[random_match_number]
-        current_hero = random_hero
-        current_match = id
+        user_data_dict[str(message.chat.id)]['current_hero'] = random_hero
+        user_data_dict[str(message.chat.id)]['current_match'] = id
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False, row_width=MAX_ROW_AMOUNT)
-        random_heroes_options = get_random_hero_id_list(answer_options_amount)
+        random_heroes_options = get_random_hero_id_list(user_data_dict[str(message.chat.id)]['answer_options_amount'])
         if random_hero not in random_heroes_options:
             random_heroes_options[random.randint(0, random_heroes_options.__len__() - 1)] = random_hero
-        set_answer_keyboard_layout(keyboard, random_heroes_options)
+        set_answer_keyboard_layout(message, keyboard, random_heroes_options)
         keyboard.row()
         keyboard.insert(types.KeyboardButton('/skip'))
         keyboard.insert(types.KeyboardButton('/attempts'))
         keyboard.insert(types.KeyboardButton('/quit_game'))
-        if not matches_list[id]["itembuild"]:
-            await message.answer("Itembuild is empty")
         item_name_list = [itemdict[item]['name'] for item in matches_list[id]["itembuild"]]
         item_id_list = matches_list[id]["itembuild"]
-        current_items = item_id_list
+        user_data_dict[str(message.chat.id)]['current_items'] = item_id_list
         build_image = generate_hero_items_image(item_id_list)
-        cv.imwrite('Image/build_image.jpg', build_image)
+        cv.imwrite(f'Image/Build Images/{str(message.chat.id)}.jpg', build_image)
         item_name_list = "".join(str(item) + ' || ' for item in item_name_list).removesuffix(' || ')
+        if not matches_list[id]["itembuild"]:
+            await message.answer("Itembuild is empty")
+            await next_question(message, change_score=False)
+            return
         await message.answer(f"Game mode: <b>{matches_list[id]['game_mode']['mode']}"
                              f", {matches_list[id]['game_mode']['lobby']}</b>\n"
                              f"Game duration: <b>{matches_list[id]['duration']}</b>\n"
                              f"Items: <b>{item_name_list}</b>", parse_mode='html', reply_markup=keyboard)
-        await message.answer_photo(types.InputFile('Image/build_image.jpg'))
+        await message.answer_photo(types.InputFile(f'Image/Build Images/{str(message.chat.id)}.jpg'))
     except Exception as e:
-        global current_score
+        user_data_dict[str(message.chat.id)]['current_score'] -=\
+            100 * max(1, user_data_dict[str(message.chat.id)]['current_attempt_count'])
         await message.answer(f"Sorry, an error has occurred. Error: {e}")
-        current_score -= 100 * max(1, current_attempt_count)
         await next_question(message, change_score=False)
         logging.log(logging.CRITICAL, f"Error: {e}")
 
@@ -336,9 +337,9 @@ def get_hero_name(hero_id):
     return herodict[hero_id]["name"]
 
 
-def set_answer_keyboard_layout(keyboard: types.ReplyKeyboardMarkup, random_heroes_options: list):
+def set_answer_keyboard_layout(message, keyboard: types.ReplyKeyboardMarkup, random_heroes_options: list):
     random_heroes_options.sort()
-    match answer_options_amount:
+    match user_data_dict[str(message.chat.id)]['answer_options_amount']:
         case 2:
             keyboard.row()
             for hero in random_heroes_options:
@@ -348,10 +349,10 @@ def set_answer_keyboard_layout(keyboard: types.ReplyKeyboardMarkup, random_heroe
             keyboard.row()
             row = 0
             for hero in random_heroes_options:
-                if answer_options_amount // 2 >= MAX_ROW_AMOUNT:
+                if user_data_dict[str(message.chat.id)]['answer_options_amount'] // 2 >= MAX_ROW_AMOUNT:
                     if row % MAX_ROW_AMOUNT == 0 and row >= MAX_ROW_AMOUNT:
                         keyboard.row()
-                elif row == answer_options_amount // 2:
+                elif row == user_data_dict[str(message.chat.id)]['answer_options_amount'] // 2:
                     keyboard.row()
                 hero_name = get_hero_name(hero)
                 row += 1
@@ -359,13 +360,16 @@ def set_answer_keyboard_layout(keyboard: types.ReplyKeyboardMarkup, random_heroe
 
 
 async def answer_correct_hero(message: types.Message):
+    current_match = user_data_dict[str(message.chat.id)]['current_match']
+    current_hero = user_data_dict[str(message.chat.id)]['current_hero']
+    current_items = user_data_dict[str(message.chat.id)]['current_items']
     keyboard = types.InlineKeyboardMarkup()
     match_url = 'www.dotabuff.com' + current_match
     keyboard.add(types.InlineKeyboardButton(text=f'Match {get_hero_as_http_parameter(current_match)}',
                                             url=match_url))
     build_image = generate_hero_items_image(current_items, current_hero)
-    cv.imwrite('Image/build_image.jpg', build_image)
-    await message.answer_photo(types.InputFile('Image/build_image.jpg'),
+    cv.imwrite(f'Image/Build Images/{str(message.chat.id)}.jpg', build_image)
+    await message.answer_photo(types.InputFile(f'Image/Build Images/{str(message.chat.id)}.jpg'),
                                caption=f'The hero was <b>{herodict[current_hero]["name"]}</b>',
                                parse_mode='html', reply_markup=keyboard)
 
@@ -378,6 +382,31 @@ def update_json(items_path, heroes_path, ignore_existing):
     JsonTools.add_dict_to_json(items_path, itemdict, ignore_existing)
 
 
+async def check_user_exists(message: types.Message):
+    user_id = str(message.chat.id)
+    if str(user_id) in list(user_data_dict.keys()):
+        await message.answer(f'Welcome to the DOTA2 item build quiz, user {user_id}!')
+        return
+    else:
+        await message.answer('Creating new user...')
+        user_vars = {}
+        user_vars['game_active'] = False
+        user_vars['answer_options_amount'] = 8
+        user_vars['language'] = "en"
+        user_vars['single_page_mode'] = True
+        user_vars['current_hero'] = ""
+        user_vars['current_items'] = []
+        user_vars['current_match'] = ""
+        user_vars['settings_text'] = f"/language <b>Current: {user_vars['language']}.</b> Change app language\n/options_amount <b>Current: {user_vars['answer_options_amount']}.</b> Change options amount given for a question(also changes attempts amount)\n/single_page_mode <b>Current: {user_vars['single_page_mode']}.</b> Change whether to delete previous messages when showing new"
+        user_vars['listening_for_setting'] = ""
+        user_vars['best_score'] = 0
+        user_vars['current_score'] = 0
+        user_vars['max_attempt_count'] = 2
+        user_vars['current_attempt_count'] = 0
+        user_vars['command_buffer'] = {}
+        user_data_dict[user_id] = user_vars
+        await message.answer(f'Welcome to the DOTA2 item build quiz, user {user_id}!')
+
 
 def load_json(items_path, heroes_path):
     global herodict, itemdict
@@ -385,6 +414,12 @@ def load_json(items_path, heroes_path):
     herodict = DotaBuffTools.get_dota2_hero_data()
     JsonTools.add_dict_to_json(items_path, itemdict)
     JsonTools.add_dict_to_json(heroes_path, herodict)
+
+
+def exit_handler():
+    for user in list(user_data_dict.keys()):
+        user_data_dict[user]['command_buffer'] = {}
+    JsonTools.add_dict_to_json('JSON Files/users.json', user_data_dict, False)
 
 
 def generate_hero_items_image(items:list, hero='unknown'):
@@ -424,7 +459,7 @@ def generate_hero_items_image(items:list, hero='unknown'):
 
 
 def main():
-    global herodict, itemdict
+    global herodict, itemdict, user_data_dict
     try:
         if input("To update heroes and items data print /update\n") == "/update":
             ignore_existing = bool(input("Ignore existing?(Y/N)").lower() == "y")
@@ -434,10 +469,11 @@ def main():
             itemdict = JsonTools.load_dict_from_json(ITEMS_JSON_PATH)
             herodict = JsonTools.load_dict_from_json(HEROES_JSON_PATH)
             logging.log(logging.INFO, "JSON data Loaded")
-            executor.start_polling(DISPATCHER, skip_updates=True)
+        user_data_dict = JsonTools.load_dict_from_json('JSON Files/users.json')
+        atexit.register(exit_handler)
+        executor.start_polling(DISPATCHER, skip_updates=True)
     except Exception as e:
         logging.log(logging.CRITICAL, f"Error: {e}")
-    input()
 
 
 if __name__ == "__main__":
