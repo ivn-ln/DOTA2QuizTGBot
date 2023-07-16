@@ -54,10 +54,10 @@ def check_game_state(desired_state: bool, *args, **kwargs):
                         user_data_dict[str(message.chat.id)]['command_buffer'] = func
                         await message.answer("Cannot execute if the game is active, type /quit_game to stop the game")
                     else:
-                        await func(message, *args, **kwargs)
+                        await func(message, *args)
                 else:
                     if user_data_dict[str(message.chat.id)]['game_active']:
-                        await func(message, *args, **kwargs)
+                        await func(message, *args)
                     else:
                         await message.answer("Cannot execute if the game is inactive, type /game to start the game")
             except Exception as e:
@@ -188,7 +188,7 @@ async def quit_game(message: types.Message):
     await check_attempts(message)
     if user_data_dict[str(message.chat.id)]['command_buffer'] != {}:
         await user_data_dict[str(message.chat.id)]['command_buffer'](message)
-        user_data_dict[message.chat.id]['command_buffer'] = {}
+        user_data_dict[str(message.chat.id)]['command_buffer'] = {}
 
 
 @DISPATCHER.message_handler()
