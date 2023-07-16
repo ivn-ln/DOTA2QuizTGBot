@@ -34,7 +34,113 @@
           "name": "/clear",
           "description": "Deletes previous chat messages"
         }
-      ]
+      ],
+      "messages": {
+        "error_is_active": "Cannot execute if the game is active, type /quit_game to stop the game",
+        "error_is_inactive": "Cannot execute if the game is inactive, type /game to start the game",
+        "error": "Error",
+        "start_text": "<b>To start the game /game</b>\n<b>To view best score /best_score</b>",
+        "you_have": "You have",
+        "attempts_amount": "Attempts left:",
+        "attempts_left": "attempts</b> left!",
+        "score": "Score",
+        "best_score_is": "Your current best score is",
+        "hero": "The hero was",
+        "match": "Match",
+        "language": "language <b>Current: ",
+        "language_description": ".</b> Change app language",
+        "options_amount": "\n/options_amount <b>Current: ",
+        "options_amount_description": ".</b> Change options amount given for a question(also changes attempts amount)",
+        "single_page_mode": "\n/single_page_mode <b>Current: ",
+        "single_page_mode_description": ".</b> Change whether to delete previous messages when showing new",
+        "type_language": "Type desired language: <i>en/ru</i>",
+        "type_options": "Type desired options_amount: <i>number</i>",
+        "single_off": "Single page mode is now <b>off</b>!",
+        "single_on": "Single page mode is now <b>on</b>!",
+        "skip_penalty": "Skip penalty: ",
+        "changed_successfully": "Option changed successfully!",
+        "setting_invalid": "Error, invalid setting!",
+        "guess_wrong": "Sorry, it`s <b>not ",
+        "game_over": "Game Over!</b>\nScore: ",
+        "new_best": "New best!",
+        "generating_response": "Generating response...",
+        "build_empty": "Itembuild is empty",
+        "game_mode": "Game mode:",
+        "game_duration": "Game duration:",
+        "items": "Items:",
+        "response_generated": "Response generated"
+      }
+    },
+    "ru": {
+      "commands": [
+        {
+          "name": "/game",
+          "description": "Начать игру"
+        },
+        {
+          "name": "/best_score",
+          "description": "Показать лучший счет"
+        },
+        {
+          "name": "/start",
+          "description": "Открыть стартовую страницу"
+        },
+        {
+          "name": "/settings",
+          "description": "Открыть страницу настроек"
+        },
+        {
+          "name": "/skip",
+          "description": "Пропустить текущий вопрос"
+        },
+        {
+          "name": "/attempts",
+          "description": "Показать оставшиеся попытки"
+        },
+        {
+          "name": "/quit_game",
+          "description": "Завершить игру"
+        },
+        {
+          "name": "/clear",
+          "description": "Удалить предыдущие сообщения"
+        }
+      ],
+      "messages": {
+        "error_is_active": "Нельзя выполнить, если игра активна. Чтобы остановить игру, введите /quit_game",
+        "error_is_inactive": "Нельзя выполнить, если игра неактивна. Чтобы начать игру, введите /game",
+        "error": "Ошибка",
+        "start_text": "<b>Чтобы начать игру, введите /game</b>\n<b>Чтобы увидеть лучший счет, введите /best_score</b>",
+        "you_have": "У вас осталось",
+        "attempts_left": "попытки</b>!",
+        "attempts_amount": "Попыток осталось:",
+        "score": "Счет",
+        "best_score_is": "Ваш лучший счет",
+        "hero": "Это был",
+        "match": "Матч",
+        "language": "язык <b>Текущий: ",
+        "language_description": ".</b> изменить язык приложения",
+        "options_amount": "\n/options_amount <b>Текущее: ",
+        "options_amount_description": ".</b> изменить количество вариантов ответов для вопроса (также меняет количество попыток)",
+        "single_page_mode": "\n/single_page_mode <b>Текущий: ",
+        "single_page_mode_description": ".</b> изменить, удалять ли предыдущие сообщения при отображении новой страницы",
+        "type_language": "Введите желаемый язык: <i>en/ru</i>",
+        "type_options": "Введите желаемое количество вариантов: <i>число</i>",
+        "single_off": "Режим одной страницы теперь <b>выключен</b>!",
+        "single_on": "Режим одной страницы теперь <b>включен</b>!",
+        "skip_penalty": "Штраф за пропуск: ",
+        "changed_successfully": "Опция успешно изменена!",
+        "setting_invalid": "Ошибка, неверная настройка!",
+        "guess_wrong": "извините, это <b>не ",
+        "game_over": "игра окончена!</b>\nСчет: ",
+        "new_best": "Новый рекорд!",
+        "generating_response": "Генерация ответа...",
+        "build_empty": "Сборка предметов пуста",
+        "game_mode": "Режим игры:",
+        "game_duration": "Продолжительность игры:",
+        "items": "Предметы:",
+        "response_generated": "Ответ сгенерирован"
+      }
     }
   }
 }
