@@ -199,8 +199,8 @@ async def skip_command(message: types.Message):
     current_attempts = user_data_dict[str(message.chat.id)]['current_attempt_count']
     max_attempt_count = user_data_dict[str(message.chat.id)]['max_attempt_count']
     locale = user_data_dict[str(message.chat.id)]['locale']
-    user_data_dict[str(message.chat.id)]['current_score'] -= \
-        (2 * (100 * (max_attempt_count - current_attempts) + 100) + 100 * max(1, current_attempts))
+    user_data_dict[str(message.chat.id)]['current_score'] -= 2 * ((100 * (max_attempt_count - current_attempts)
+                                                                  + 100)) + 100 * max(1, current_attempts)
     await message.answer(f"<b>{LOCALES_DATA[locale]['messages']['skip_penalty'].encode('cp1251').decode('utf8')}"
                          f" {(2 * (100 * (max_attempt_count - current_attempts) + 100))}</b>",
                          parse_mode='html')
@@ -210,7 +210,7 @@ async def skip_command(message: types.Message):
 @DISPATCHER.message_handler(commands=["clear"])
 @check_game_state(desired_state=False)
 async def clear(message: types.Message):
-    delete_messages_before_message(message)
+    await delete_messages_before_message(message)
     await start_command(message)
 
 
@@ -307,11 +307,11 @@ async def delete_previous_messages(message):
     locale = user_data_dict[str(message.chat.id)]['locale']
     generating_response = LOCALES_DATA[locale]['messages']['generating_response'].encode('cp1251').decode('utf8')
     gen_message = await message.answer(generating_response)
-    delete_messages_before_message(message)
+    await delete_messages_before_message(message)
     return gen_message
 
 
-def delete_messages_before_message(message: types.Message):
+async def delete_messages_before_message(message: types.Message):
     for msg in range(message.message_id, 1, -1):
         try:
             await BOT.delete_message(chat_id=message.chat.id, message_id=msg)
@@ -331,9 +331,9 @@ async def get_build(message: types.Message):
         matches_list = DotaBuffTools.get_hero_recent_match_data(50, get_hero_as_http_parameter(random_hero))
         matches_ids = list(matches_list.keys())
         random_match_number = random.Random().randint(0, matches_ids.__len__()-1)
-        id_ = list(matches_ids)[random_match_number]
+        id = list(matches_ids)[random_match_number]
         user_data_dict[str(message.chat.id)]['current_hero'] = random_hero
-        user_data_dict[str(message.chat.id)]['current_match'] = id_
+        user_data_dict[str(message.chat.id)]['current_match'] = id
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False,
                                              row_width=MAX_ROW_AMOUNT, is_persistent=True)
         random_heroes_options = get_random_hero_id_list(user_data_dict[str(message.chat.id)]['answer_options_amount'])
