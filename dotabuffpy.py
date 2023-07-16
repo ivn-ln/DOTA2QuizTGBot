@@ -85,9 +85,25 @@ class DotaBuffTools:
                     continue
 
                 game_mode_cell = tr.find_all("td")[1]
-                lobby = lobby.title() if lobby else game_mode_cell.find("div").text.strip()
-                mode = game_mode.title() if game_mode\
-                    else game_mode_cell.text.split("<div")[0].strip().replace(lobby, '')
+                mode = game_mode.title() if game_mode else game_mode_cell.text.strip()
+                if lobby:
+                    lobby = lobby.title()
+                else:
+                    if 'Normal Matchmaking' in mode:
+                        lobby = 'Normal Matchmaking'
+                    elif 'Ranked Matchmaking' in mode:
+                        lobby = 'Ranked Matchmaking'
+                    elif 'Battle Cup' in mode:
+                        lobby = 'Battle Cup'
+                    elif 'Unknown' in mode:
+                        lobby = 'Unknown'
+                    elif 'Bot' in mode:
+                        lobby = 'Bot'
+                mode = mode.replace('Normal Matchmaking', '')
+                mode = mode.replace('Ranked Matchmaking', '')
+                mode = mode.replace('Battle Cup', '')
+                mode = mode.replace('Unknown', '')
+                mode = mode.replace('Bot', '')
 
                 result = tr.find_all("td")[2].find("a").text.strip()
                 region = region if region else tr.find_all("td")[2].find("div").text.strip()

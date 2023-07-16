@@ -181,6 +181,7 @@ async def clear(message):
 
 
 @DISPATCHER.message_handler(commands=["quit_game"])
+@DISPATCHER.message_handler(commands=["quit_game"])
 @check_game_state(desired_state=True)
 async def quit_game(message: types.Message):
     global user_data_dict
@@ -417,9 +418,13 @@ def load_json(items_path, heroes_path):
 
 
 def exit_handler():
-    for user in list(user_data_dict.keys()):
-        user_data_dict[user]['command_buffer'] = {}
-    JsonTools.add_dict_to_json('JSON Files/users.json', user_data_dict, False)
+    try:
+        for user in list(user_data_dict.keys()):
+            user_data_dict[user]['command_buffer'] = {}
+        JsonTools.add_dict_to_json('JSON Files/users.json', user_data_dict, False)
+        logging.log(logging.INFO, 'User data saved successfully')
+    except Exception as e:
+        logging.log(logging.INFO, f'User data saved unsuccessfully. Error: {e}')
 
 
 def generate_hero_items_image(items:list, hero='unknown'):
@@ -461,7 +466,7 @@ def generate_hero_items_image(items:list, hero='unknown'):
 def main():
     global herodict, itemdict, user_data_dict
     try:
-        if input("To update heroes and items data print /update\n") == "/update":
+        if input("To update heroes and items data print /update or press enter to proceed\n") == "/update":
             ignore_existing = bool(input("Ignore existing?(Y/N)").lower() == "y")
             update_json(ITEMS_JSON_PATH, HEROES_JSON_PATH, ignore_existing)
             logging.log(logging.INFO, "JSON data Updated and loaded")
@@ -471,7 +476,9 @@ def main():
             logging.log(logging.INFO, "JSON data Loaded")
         user_data_dict = JsonTools.load_dict_from_json('JSON Files/users.json')
         atexit.register(exit_handler)
+        print('Bot started')
         executor.start_polling(DISPATCHER, skip_updates=True)
+        print('Bot stopped')
     except Exception as e:
         logging.log(logging.CRITICAL, f"Error: {e}")
 
