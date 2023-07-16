@@ -247,6 +247,7 @@ async def get_setting_value(message: types.Message):
             if message.text.lower() in ['en', 'ru']:
                 user_data_dict[str(message.chat.id)]['language'] = message.text.lower()
                 user_data_dict[str(message.chat.id)]['locale'] = message.text.lower()
+                changed_text = LOCALES_DATA[message.text.lower()]['messages']['changed_successfully'].encode('cp1251').decode('utf8')
                 await message.answer(changed_text, reply_markup=keyboard)
             else:
                 await message.answer(setting_invalid, reply_markup=keyboard)
@@ -434,10 +435,10 @@ def update_json(items_path, heroes_path, ignore_existing):
 async def check_user_exists(message: types.Message):
     user_id = str(message.chat.id)
     if str(user_id) in list(user_data_dict.keys()):
-        await message.answer(f'Welcome to the DOTA2 item build quiz, user {user_id}!')
+        #await message.answer(f'Welcome to the DOTA2 item build quiz, user {user_id}!')
         return
     else:
-        await message.answer('Creating new user...')
+        #await message.answer('Creating new user...')
         user_vars = {}
         user_vars['game_active'] = False
         user_vars['answer_options_amount'] = 8
