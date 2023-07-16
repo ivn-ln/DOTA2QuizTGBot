@@ -50,18 +50,21 @@ def check_game_state(desired_state: bool, *args):
                 if desired_state is False:
                     if game_active:
                         user_data_dict[str(message.chat.id)]['command_buffer'] = func
-                        await message.answer(LOCALES_DATA[locale]['messages']['error_is_active'].encode('cp1251').decode('utf8'))
+                        await message.answer(LOCALES_DATA[locale]['messages']
+                                             ['error_is_active'].encode('cp1251').decode('utf8'))
                     else:
                         await func(message, *args)
                 else:
                     if game_active:
                         await func(message, *args)
                     else:
-                        await message.answer(LOCALES_DATA[locale]['messages']['error_is_inactive'].encode('cp1251').decode('utf8'))
+                        await message.answer(LOCALES_DATA[locale]['messages']
+                                             ['error_is_inactive'].encode('cp1251').decode('utf8'))
             except Exception as e:
                 await start(message)
                 locale = user_data_dict[str(message.chat.id)]['locale']
-                logging.log(logging.CRITICAL, f"{LOCALES_DATA[locale]['messages']['error'].encode('cp1251').decode('utf8')}: {e}")
+                c = logging.CRITICAL
+                logging.log(c, f"{(LOCALES_DATA[locale]['messages']['error'].encode('cp1251').decode('utf8'))}: {e}")
         return wrapper
     return decorator
 
@@ -119,7 +122,15 @@ async def settings(message: types.Message):
     keyboard.add(types.KeyboardButton('/options_amount'))
     keyboard.add(types.KeyboardButton('/single_page_mode'))
     user_vars = user_data_dict[str(message.chat.id)]
-    settings_text = f"/{LOCALES_DATA[locale]['messages']['language'].encode('cp1251').decode('utf8') + user_vars['language'] + LOCALES_DATA[locale]['messages']['language_description'].encode('cp1251').decode('utf8') + LOCALES_DATA[locale]['messages']['options_amount'].encode('cp1251').decode('utf8') + str(user_vars['answer_options_amount']) + LOCALES_DATA[locale]['messages']['options_amount_description'].encode('cp1251').decode('utf8') + LOCALES_DATA[locale]['messages']['single_page_mode'].encode('cp1251').decode('utf8') + str(user_vars['single_page_mode']) + LOCALES_DATA[locale]['messages']['single_page_mode_description'].encode('cp1251').decode('utf8')}"
+    settings_text = (LOCALES_DATA[locale]['messages']['language'].encode('cp1251').decode('utf8')
+                     + user_vars['language']
+                     + LOCALES_DATA[locale]['messages']['language_description'].encode('cp1251').decode('utf8')
+                     + LOCALES_DATA[locale]['messages']['options_amount'].encode('cp1251').decode('utf8')
+                     + str(user_vars['answer_options_amount'])
+                     + LOCALES_DATA[locale]['messages']['options_amount_description'].encode('cp1251').decode('utf8')
+                     + LOCALES_DATA[locale]['messages']['single_page_mode'].encode('cp1251').decode('utf8')
+                     + str(user_vars['single_page_mode'])
+                     + LOCALES_DATA[locale]['messages']['single_page_mode_description'].encode('cp1251').decode('utf8'))
     await message.answer(settings_text, parse_mode='html', reply_markup=keyboard)
 
 
@@ -185,24 +196,21 @@ async def next_question(message, change_score=True):
 @check_game_state(desired_state=True)
 async def skip_command(message: types.Message):
     global user_data_dict
+    current_attempts = user_data_dict[str(message.chat.id)]['current_attempt_count']
+    max_attempt_count = user_data_dict[str(message.chat.id)]['max_attempt_count']
     locale = user_data_dict[str(message.chat.id)]['locale']
-    user_data_dict[str(message.chat.id)]['current_score'] -=\
-        2 * max(100, 100 * (user_data_dict[str(message.chat.id)]['max_attempt_count']
-                            - user_data_dict[str(message.chat.id)]['current_attempt_count'])
-                + 100 * max(1, user_data_dict[str(message.chat.id)]['current_attempt_count']))
-    await message.answer(f"<b>{LOCALES_DATA[locale]['messages']['skip_penalty'].encode('cp1251').decode('utf8')} {2 * max(100, 100 *  (user_data_dict[str(message.chat.id)]['max_attempt_count'] - user_data_dict[str(message.chat.id)]['current_attempt_count']))}</b>",
+    user_data_dict[str(message.chat.id)]['current_score'] -= \
+        (2 * (100 * (max_attempt_count - current_attempts) + 100) + 100 * max(1, current_attempts))
+    await message.answer(f"<b>{LOCALES_DATA[locale]['messages']['skip_penalty'].encode('cp1251').decode('utf8')}"
+                         f" {(2 * (100 * (max_attempt_count - current_attempts) + 100))}</b>",
                          parse_mode='html')
     await next_question(message)
 
 
 @DISPATCHER.message_handler(commands=["clear"])
 @check_game_state(desired_state=False)
-async def clear(message):
-    for msg in range(message.message_id, 1, -1):
-        try:
-            await BOT.delete_message(chat_id=message.chat.id, message_id=msg)
-        except:
-            break
+async def clear(message: types.Message):
+    delete_messages_before_message(message)
     await start_command(message)
 
 
@@ -246,7 +254,8 @@ async def get_setting_value(message: types.Message):
             if message.text.lower() in ['en', 'ru']:
                 user_data_dict[str(message.chat.id)]['language'] = message.text.lower()
                 user_data_dict[str(message.chat.id)]['locale'] = message.text.lower()
-                changed_text = LOCALES_DATA[message.text.lower()]['messages']['changed_successfully'].encode('cp1251').decode('utf8')
+                changed_text = LOCALES_DATA[message.text.lower()]['messages']['changed_successfully']
+                changed_text = changed_text.encode('cp1251').decode('utf8')
                 await message.answer(changed_text, reply_markup=keyboard)
             else:
                 await message.answer(setting_invalid, reply_markup=keyboard)
@@ -256,7 +265,8 @@ async def get_setting_value(message: types.Message):
                 user_data_dict[str(message.chat.id)]['answer_options_amount'] = options_amount
                 user_data_dict[str(message.chat.id)]['max_attempt_count'] = options_amount // 3
                 await message.answer(changed_text, reply_markup=keyboard)
-            except:
+            except Exception as e:
+                logging.log(logging.DEBUG, f'Number invalid. Error: {e}')
                 await message.answer('Invalid number', reply_markup=keyboard)
         case _:
             await message.answer(setting_invalid, reply_markup=keyboard)
@@ -295,13 +305,19 @@ async def check_attempts(message: types.Message):
 
 async def delete_previous_messages(message):
     locale = user_data_dict[str(message.chat.id)]['locale']
-    gen_message = await message.answer(LOCALES_DATA[locale]['messages']['generating_response'].encode('cp1251').decode('utf8'))
+    generating_response = LOCALES_DATA[locale]['messages']['generating_response'].encode('cp1251').decode('utf8')
+    gen_message = await message.answer(generating_response)
+    delete_messages_before_message(message)
+    return gen_message
+
+
+def delete_messages_before_message(message: types.Message):
     for msg in range(message.message_id, 1, -1):
         try:
             await BOT.delete_message(chat_id=message.chat.id, message_id=msg)
-        except:
+        except Exception as e:
+            logging.log(logging.DEBUG, f'Encountered error deleting message #{message.message_id}. Error: {e}')
             break
-    return gen_message
 
 
 @single_page
@@ -309,14 +325,15 @@ async def get_build(message: types.Message):
     global user_data_dict
     locale = user_data_dict[str(message.chat.id)]['locale']
     try:
-        user_data_dict[str(message.chat.id)]['current_attempt_count'] = user_data_dict[str(message.chat.id)]['max_attempt_count']
+        max_attempt_count = user_data_dict[str(message.chat.id)]['max_attempt_count']
+        user_data_dict[str(message.chat.id)]['current_attempt_count'] = max_attempt_count
         random_hero = get_random_hero_id()
         matches_list = DotaBuffTools.get_hero_recent_match_data(50, get_hero_as_http_parameter(random_hero))
         matches_ids = list(matches_list.keys())
         random_match_number = random.Random().randint(0, matches_ids.__len__()-1)
-        id = list(matches_ids)[random_match_number]
+        id_ = list(matches_ids)[random_match_number]
         user_data_dict[str(message.chat.id)]['current_hero'] = random_hero
-        user_data_dict[str(message.chat.id)]['current_match'] = id
+        user_data_dict[str(message.chat.id)]['current_match'] = id_
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False,
                                              row_width=MAX_ROW_AMOUNT, is_persistent=True)
         random_heroes_options = get_random_hero_id_list(user_data_dict[str(message.chat.id)]['answer_options_amount'])
@@ -357,8 +374,9 @@ async def edit_gen_message(from_message, gen_message):
     global user_data_dict
     locale = user_data_dict[str(from_message.chat.id)]['locale']
     message = from_message
+    response_generated = LOCALES_DATA[locale]['messages']['response_generated'].encode('cp1251').decode('utf8')
     await BOT.edit_message_text(chat_id=message.chat.id, message_id=gen_message.message_id,
-                                text=f"<b>{LOCALES_DATA[locale]['messages']['response_generated'].encode('cp1251').decode('utf8')}</b>",
+                                text=f"<b>{response_generated}</b>",
                                 parse_mode='html')
 
 
@@ -414,7 +432,8 @@ async def answer_correct_hero(message: types.Message):
     current_items = user_data_dict[str(message.chat.id)]['current_items']
     keyboard = types.InlineKeyboardMarkup()
     match_url = 'www.dotabuff.com' + current_match
-    keyboard.add(types.InlineKeyboardButton(text=f"{LOCALES_DATA[locale]['messages']['match'].encode('cp1251').decode('utf8')}"
+    match_text = LOCALES_DATA[locale]['messages']['match'].encode('cp1251').decode('utf8')
+    keyboard.add(types.InlineKeyboardButton(text=f"{match_text}"
                                                  f" {get_hero_as_http_parameter(current_match)}",
                                             url=match_url))
     build_image = generate_hero_items_image(current_items, current_hero)
@@ -436,10 +455,8 @@ def update_json(items_path, heroes_path, ignore_existing):
 async def check_user_exists(message: types.Message):
     user_id = str(message.chat.id)
     if str(user_id) in list(user_data_dict.keys()):
-        #await message.answer(f'Welcome to the DOTA2 item build quiz, user {user_id}!')
         return
     else:
-        #await message.answer('Creating new user...')
         user_vars = {}
         user_vars['game_active'] = False
         user_vars['answer_options_amount'] = 8
@@ -496,16 +513,16 @@ def generate_hero_items_image(items: list, hero='unknown'):
             item_image = np.uint8(np.asarray(itemdict[item_name]['image']))
             item_image_list.append(item_image)
     item_number = 0
-    for l in range(grid_lines):
-        for r in range(grid_rows):
+    for line in range(grid_lines):
+        for row in range(grid_rows):
             if item_number >= item_image_list.__len__():
                 break
             item_image = item_image_list[item_number]
             item_image = cv.resize(item_image, (cell_size_x - cell_margin_x + 1, cell_size_y - cell_margin_y + 1))
-            grid[cell_margin_y + cell_margin_y * l +
-                 cell_size_y * l:cell_size_y + cell_size_y * l + cell_margin_y * l + 1,
-                 cell_margin_x + cell_margin_x * r + cell_size_x * r:cell_size_x
-                 + cell_margin_x * r + cell_size_x * r + 1] = item_image
+            grid[cell_margin_y + cell_margin_y * line +
+                 cell_size_y * line:cell_size_y + cell_size_y * line + cell_margin_y * line + 1,
+                 cell_margin_x + cell_margin_x * row + cell_size_x * row:cell_size_x
+                 + cell_margin_x * row + cell_size_x * row + 1] = item_image
             item_number += 1
     hero_image = cv.resize(hero_image, [257, 144])
     result = np.vstack([grid, label])
