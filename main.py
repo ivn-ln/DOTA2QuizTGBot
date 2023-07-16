@@ -59,20 +59,9 @@ def check_game_state(desired_state: bool, *args):
                     else:
                         await message.answer(LOCALES_DATA[locale]['messages']['error_is_inactive'].encode('cp1251').decode('utf8'))
             except Exception as e:
-                await check_user_exists(message)
+                await start(message)
                 locale = user_data_dict[str(message.chat.id)]['locale']
-                user_data_dict[str(message.chat.id)]['game_active'] = False
                 logging.log(logging.CRITICAL, f"{LOCALES_DATA[locale]['messages']['error'].encode('cp1251').decode('utf8')}: {e}")
-                keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-                keyboard.add(types.KeyboardButton('/game'))
-                keyboard.add(types.KeyboardButton('/settings'))
-                start_text = LOCALES_DATA[locale]['messages']['start_text'].encode('cp1251').decode('utf8')
-                commands = LOCALES_DATA[locale]['commands']
-                help_text = "".join(command_description['name'].encode('cp1251').decode('utf8')
-                                    + " " + command_description['description'].encode('cp1251').decode('utf8') + '\n'
-                                    for command_description in commands)
-                await message.answer(start_text, reply_markup=keyboard, parse_mode='html')
-                await message.answer(help_text)
         return wrapper
     return decorator
 
@@ -81,16 +70,22 @@ def check_game_state(desired_state: bool, *args):
 @check_game_state(desired_state=False)
 @single_page
 async def start_command(message: types.Message):
+    await start(message)
+
+
+async def start(message):
+    await check_user_exists(message)
     locale = user_data_dict[str(message.chat.id)]['locale']
     start_text = LOCALES_DATA[locale]['messages']['start_text'].encode('cp1251').decode('utf8')
     commands = LOCALES_DATA[locale]['commands']
     help_text = "".join(command_description['name'].encode('cp1251').decode('utf8')
                         + " " + command_description['description'].encode('cp1251').decode('utf8') + '\n'
                         for command_description in commands)
-    await check_user_exists(message)
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    keyboard.add(types.KeyboardButton('/game'))
-    keyboard.add(types.KeyboardButton('/settings'))
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=False, one_time_keyboard=False, is_persistent=True)
+    keyboard.row()
+    keyboard.insert(types.KeyboardButton('/game'))
+    keyboard.row()
+    keyboard.insert(types.KeyboardButton('/settings'))
     await message.answer(start_text, reply_markup=keyboard, parse_mode='html')
     await message.answer(help_text)
 
@@ -118,7 +113,7 @@ async def best_score_command(message: types.Message):
 @single_page
 async def settings(message: types.Message):
     locale = user_data_dict[str(message.chat.id)]['locale']
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=False, one_time_keyboard=False, is_persistent=True)
     keyboard.add(types.KeyboardButton('/back'))
     keyboard.add(types.KeyboardButton('/language'))
     keyboard.add(types.KeyboardButton('/options_amount'))
@@ -133,15 +128,19 @@ async def settings(message: types.Message):
 async def change_settings(message: types.Message):
     global user_data_dict
     locale = user_data_dict[str(message.chat.id)]['locale']
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=False, one_time_keyboard=False, is_persistent=True)
     keyboard.add(types.KeyboardButton('/back'))
     keyboard.add(types.KeyboardButton('/language'))
     keyboard.add(types.KeyboardButton('/options_amount'))
     keyboard.add(types.KeyboardButton('/single_page_mode'))
     match message.get_command(True):
         case 'language':
+            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=False, one_time_keyboard=False, is_persistent=True)
+            keyboard.row()
+            keyboard.insert(types.KeyboardButton('en'))
+            keyboard.insert(types.KeyboardButton('ru'))
             await message.answer(LOCALES_DATA[locale]['messages']['type_language'].encode('cp1251').decode('utf8'),
-                                 parse_mode='html')
+                                 parse_mode='html', reply_markup=keyboard)
             user_data_dict[str(message.chat.id)]['listening_for_setting'] = message.get_command(True)
         case 'options_amount':
             await message.answer(LOCALES_DATA[locale]['messages']['type_options'].encode('cp1251').decode('utf8'),
@@ -235,7 +234,7 @@ async def get_setting_value(message: types.Message):
     locale = user_data_dict[str(message.chat.id)]['locale']
     if user_data_dict[str(message.chat.id)]['listening_for_setting'] == "":
         return
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=False, one_time_keyboard=False, is_persistent=True)
     keyboard.add(types.KeyboardButton('/back'))
     keyboard.add(types.KeyboardButton('/language'))
     keyboard.add(types.KeyboardButton('/options_amount'))
@@ -278,9 +277,10 @@ async def check_attempts(message: types.Message):
     else:
         user_data_dict[str(message.chat.id)]['game_active'] = False
         await answer_correct_hero(message)
-        keyboard = types.ReplyKeyboardMarkup()
-        keyboard.add(types.KeyboardButton('/retry'))
-        keyboard.add(types.KeyboardButton('/quit'))
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=False, one_time_keyboard=False, is_persistent=True)
+        keyboard.row()
+        keyboard.insert(types.KeyboardButton('/retry'))
+        keyboard.insert(types.KeyboardButton('/quit'))
         await message.answer(f"<b>{LOCALES_DATA[locale]['messages']['game_over'].encode('cp1251').decode('utf8')}"
                              f"<b>{user_data_dict[str(message.chat.id)]['current_score']}</b>",
                              reply_markup=keyboard, parse_mode='html')
@@ -317,7 +317,8 @@ async def get_build(message: types.Message):
         id = list(matches_ids)[random_match_number]
         user_data_dict[str(message.chat.id)]['current_hero'] = random_hero
         user_data_dict[str(message.chat.id)]['current_match'] = id
-        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False, row_width=MAX_ROW_AMOUNT)
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False,
+                                             row_width=MAX_ROW_AMOUNT, is_persistent=True)
         random_heroes_options = get_random_hero_id_list(user_data_dict[str(message.chat.id)]['answer_options_amount'])
         if random_hero not in random_heroes_options:
             random_heroes_options[random.randint(0, random_heroes_options.__len__() - 1)] = random_hero
