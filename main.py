@@ -9,6 +9,7 @@ import cv2 as cv
 import numpy as np
 import atexit
 import os
+from threading import Timer
 
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO,
@@ -154,8 +155,13 @@ async def change_settings(message: types.Message):
                                  parse_mode='html', reply_markup=keyboard)
             user_data_dict[str(message.chat.id)]['listening_for_setting'] = message.get_command(True)
         case 'options_amount':
+            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=False, one_time_keyboard=False, is_persistent=True)
+            keyboard.insert(types.KeyboardButton('4'))
+            keyboard.insert(types.KeyboardButton('8'))
+            keyboard.insert(types.KeyboardButton('20'))
+            keyboard.insert(types.KeyboardButton('130'))
             await message.answer(LOCALES_DATA[locale]['messages']['type_options'].encode('cp1251').decode('utf8'),
-                                 parse_mode='html')
+                                 parse_mode='html', reply_markup=keyboard)
             user_data_dict[str(message.chat.id)]['listening_for_setting'] = message.get_command(True)
         case 'single_page_mode':
             if user_data_dict[str(message.chat.id)]['single_page_mode']:
@@ -199,10 +205,11 @@ async def skip_command(message: types.Message):
     current_attempts = user_data_dict[str(message.chat.id)]['current_attempt_count']
     max_attempt_count = user_data_dict[str(message.chat.id)]['max_attempt_count']
     locale = user_data_dict[str(message.chat.id)]['locale']
-    user_data_dict[str(message.chat.id)]['current_score'] -= 2 * ((100 * (max_attempt_count - current_attempts)
-                                                                  + 100)) + 100 * max(1, current_attempts)
+    user_data_dict[str(message.chat.id)]['current_score'] -= (current_attempts * 100 + 2 *
+                                                              (100 * (max_attempt_count - current_attempts))
+                                                              + 100 * max(1, current_attempts))
     await message.answer(f"<b>{LOCALES_DATA[locale]['messages']['skip_penalty'].encode('cp1251').decode('utf8')}"
-                         f" {(2 * (100 * (max_attempt_count - current_attempts) + 100))}</b>",
+                         f" {(current_attempts * 100 + 2 * (100 * (max_attempt_count - current_attempts)))}</b>",
                          parse_mode='html')
     await next_question(message)
 
@@ -263,7 +270,7 @@ async def get_setting_value(message: types.Message):
             try:
                 options_amount = min(max(1, int(message.text)), list(herodict.keys()).__len__())
                 user_data_dict[str(message.chat.id)]['answer_options_amount'] = options_amount
-                user_data_dict[str(message.chat.id)]['max_attempt_count'] = options_amount // 3
+                user_data_dict[str(message.chat.id)]['max_attempt_count'] = options_amount // 4
                 await message.answer(changed_text, reply_markup=keyboard)
             except Exception as e:
                 logging.log(logging.DEBUG, f'Number invalid. Error: {e}')
@@ -352,6 +359,8 @@ async def get_build(message: types.Message):
         item_name_list = "".join(str(item) + ' || ' for item in item_name_list).removesuffix(' || ')
         if not matches_list[id]["itembuild"]:
             await message.answer(LOCALES_DATA[locale]['messages']['build_empty'].encode('cp1251').decode('utf8'))
+            user_data_dict[str(message.chat.id)]['current_score'] -= \
+                100 * max(1, user_data_dict[str(message.chat.id)]['current_attempt_count'])
             await next_question(message)
             return
         await message.answer(f"{LOCALES_DATA[locale]['messages']['game_mode'].encode('cp1251').decode('utf8')}"
@@ -485,13 +494,7 @@ def load_json(items_path, heroes_path):
 
 
 def exit_handler():
-    try:
-        for user in list(user_data_dict.keys()):
-            user_data_dict[user]['command_buffer'] = {}
-        JsonTools.add_dict_to_json('JSON Files/users.json', user_data_dict, False)
-        logging.log(logging.INFO, 'User data saved successfully')
-    except Exception as e:
-        logging.log(logging.INFO, f'User data saved unsuccessfully. Error: {e}')
+    save_user_data()
 
 
 def generate_hero_items_image(items: list, hero='unknown'):
@@ -530,6 +533,23 @@ def generate_hero_items_image(items: list, hero='unknown'):
     return result
 
 
+def save_user_data():
+    try:
+        for user in list(user_data_dict.keys()):
+            user_data_dict[user]['command_buffer'] = {}
+        JsonTools.add_dict_to_json('JSON Files/users.json', user_data_dict, False)
+        logging.log(logging.INFO, 'User data saved successfully')
+    except Exception as e:
+        logging.log(logging.INFO, f'User data saved unsuccessfully. Error: {e}')
+
+
+def backup_timer_timeout():
+    logging.log(logging.INFO, 'Starting scheduled user data backup')
+    save_user_data()
+    backup_timer = Timer(3600, backup_timer_timeout)
+    backup_timer.start()
+
+
 def main():
     global herodict, itemdict, user_data_dict
     try:
@@ -544,6 +564,8 @@ def main():
         user_data_dict = JsonTools.load_dict_from_json('JSON Files/users.json')
         atexit.register(exit_handler)
         print('Bot started')
+        backup_timer = Timer(3600, backup_timer_timeout)
+        backup_timer.start()
         executor.start_polling(DISPATCHER, skip_updates=True)
         print('Bot stopped')
     except Exception as e:
