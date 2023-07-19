@@ -7,7 +7,6 @@ from jsontools import JsonTools
 import random
 import cv2 as cv
 import numpy as np
-import atexit
 import os
 from threading import Timer
 
@@ -323,7 +322,7 @@ async def delete_messages_before_message(message: types.Message):
         try:
             await BOT.delete_message(chat_id=message.chat.id, message_id=msg)
         except Exception as e:
-            logging.log(logging.DEBUG, f'Encountered error deleting message #{message.message_id}. Error: {e}')
+            logging.log(logging.WARNING, f'Encountered error deleting message #{message.message_id}. Error: {e}')
             break
 
 
@@ -493,10 +492,6 @@ def load_json(items_path, heroes_path):
     JsonTools.add_dict_to_json(heroes_path, herodict)
 
 
-def exit_handler():
-    save_user_data()
-
-
 def generate_hero_items_image(items: list, hero='unknown'):
     if hero == 'unknown':
         hero_image = cv.imread('Image/unknown.png')
@@ -562,12 +557,12 @@ def main():
             herodict = JsonTools.load_dict_from_json(HEROES_JSON_PATH)
             logging.log(logging.INFO, "JSON data Loaded")
         user_data_dict = JsonTools.load_dict_from_json('JSON Files/users.json')
-        atexit.register(exit_handler)
         print('Bot started')
         backup_timer = Timer(3600, backup_timer_timeout)
         backup_timer.start()
         executor.start_polling(DISPATCHER, skip_updates=True)
         print('Bot stopped')
+        save_user_data()
     except Exception as e:
         logging.log(logging.CRITICAL, f"Error: {e}")
 
