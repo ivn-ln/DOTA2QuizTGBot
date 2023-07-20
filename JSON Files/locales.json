@@ -68,7 +68,9 @@
         "game_mode": "Game mode:",
         "game_duration": "Game duration:",
         "items": "Items:",
-        "response_generated": "Response generated"
+        "response_generated": "Response generated",
+        "request_cooldown": "Sorry, but you're making too much requests. You're given 1 minute request timeout.",
+        "timeout_end": "Timeout ended."
       }
     },
     "ru": {
@@ -139,7 +141,9 @@
         "game_mode": "Режим игры:",
         "game_duration": "Продолжительность игры:",
         "items": "Предметы:",
-        "response_generated": "Ответ сгенерирован"
+        "response_generated": "Ответ сгенерирован",
+        "request_cooldown": "извините, но вы делаете слишком много запросов. Вам выдано время ожидания в 1 минуту.",
+        "timeout_end": "Время ожидания подошло к концу."
       }
     }
   }

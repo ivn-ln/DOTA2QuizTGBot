@@ -11,6 +11,10 @@ import os
 from threading import Timer
 
 
+if not os.path.exists('Logs/'):
+    os.mkdir('Logs/')
+if not os.path.exists('Logs/logs.txt'):
+    open('Logs/logs.txt', 'x')
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO,
                     filename='Logs/logs.txt')
 BOT = Bot(API_TOKEN)
@@ -21,6 +25,9 @@ LOCALES_DATA = LOCALES_DATA["locales"]
 ITEMS_JSON_PATH = 'JSON Files/items.json'
 HEROES_JSON_PATH = 'JSON Files/heroes.json'
 MAX_ROW_AMOUNT = 4
+MAX_REQUESTS_PER_USER = 5
+REQUEST_TIMEOUT_RESET_TIME = 10
+REQUEST_TIMEOUT_TIME = 60
 
 
 itemdict = {}
@@ -306,7 +313,8 @@ async def check_attempts(message: types.Message):
         user_data_dict[str(message.chat.id)]['best_score'] = max(user_data_dict[str(message.chat.id)]['best_score'],
                                                                  user_data_dict[str(message.chat.id)]['current_score'])
         user_data_dict[str(message.chat.id)]['current_score'] = 0
-        os.remove(f"Image/Build Images/{message.chat.id}.jpg")
+        if os.path.exists(f"Image/Build Images/{message.chat.id}.jpg"):
+            os.remove(f"Image/Build Images/{message.chat.id}.jpg")
 
 
 async def delete_previous_messages(message):
@@ -331,6 +339,9 @@ async def get_build(message: types.Message):
     global user_data_dict
     locale = user_data_dict[str(message.chat.id)]['locale']
     try:
+        if user_data_dict[str(message.chat.id)]['timeout_timer'] != "":
+            await message.answer(LOCALES_DATA[locale]['messages']['request_cooldown'].encode('cp1251').decode('utf8'))
+            return
         max_attempt_count = user_data_dict[str(message.chat.id)]['max_attempt_count']
         user_data_dict[str(message.chat.id)]['current_attempt_count'] = max_attempt_count
         random_hero = get_random_hero_id()
@@ -354,6 +365,8 @@ async def get_build(message: types.Message):
         item_id_list = matches_list[id]["itembuild"]
         user_data_dict[str(message.chat.id)]['current_items'] = item_id_list
         build_image = generate_hero_items_image(item_id_list)
+        if not os.path.exists('Image/Build Images/'):
+            os.mkdir('Image/Build Images/')
         cv.imwrite(f'Image/Build Images/{str(message.chat.id)}.jpg', build_image)
         item_name_list = "".join(str(item) + ' || ' for item in item_name_list).removesuffix(' || ')
         if not matches_list[id]["itembuild"]:
@@ -370,12 +383,33 @@ async def get_build(message: types.Message):
                              f"{LOCALES_DATA[locale]['messages']['items'].encode('cp1251').decode('utf8')}"
                              f" <b>{item_name_list}</b>", parse_mode='html', reply_markup=keyboard)
         await message.answer_photo(types.InputFile(f'Image/Build Images/{str(message.chat.id)}.jpg'))
+        user_data_dict[str(message.chat.id)]['requests_amount'] += 1
+        if user_data_dict[str(message.chat.id)]['requests_amount'] >= MAX_REQUESTS_PER_USER:
+            if user_data_dict[str(message.chat.id)]['reset_timer'] != "":
+                user_data_dict[str(message.chat.id)]['reset_timer'].cancel()
+            await message.answer(LOCALES_DATA[locale]['messages']['request_cooldown'].encode('cp1251').decode('utf8'))
+            user_data_dict[str(message.chat.id)]['timeout_timer'] = Timer(REQUEST_TIMEOUT_TIME, reset_timeout, message)
+            user_data_dict[str(message.chat.id)]['timeout_timer'].start()
+        if user_data_dict[str(message.chat.id)]['reset_timer'] == "":
+            user_data_dict[str(message.chat.id)]['reset_timer'] = Timer(REQUEST_TIMEOUT_RESET_TIME, reset_timeout, message)
+            user_data_dict[str(message.chat.id)]['reset_timer'].start()
+        else:
+            user_data_dict[str(message.chat.id)]['reset_timer'].cancel()
     except Exception as e:
         user_data_dict[str(message.chat.id)]['current_score'] -=\
             100 * max(1, user_data_dict[str(message.chat.id)]['current_attempt_count'])
         await message.answer(f"Sorry, an error has occurred. Error: {e}")
         await next_question(message)
         logging.log(logging.CRITICAL, f"Error: {e}")
+
+
+def reset_timeout(message: types.Message, *args):
+    message = dict(args)
+    global user_data_dict
+    locale = user_data_dict[str(message['chat']['id'])]['locale']
+    user_data_dict[str(message['chat']['id'])]['requests_amount'] = 0
+    user_data_dict[str(message['chat']['id'])]['timeout_timer'] = ""
+    user_data_dict[str(message['chat']['id'])]['reset_timer'] = ""
 
 
 async def edit_gen_message(from_message, gen_message):
@@ -445,6 +479,8 @@ async def answer_correct_hero(message: types.Message):
                                                  f" {get_hero_as_http_parameter(current_match)}",
                                             url=match_url))
     build_image = generate_hero_items_image(current_items, current_hero)
+    if not os.path.exists('Image/Build Images/'):
+        os.mkdir('Image/Build Images/')
     cv.imwrite(f'Image/Build Images/{str(message.chat.id)}.jpg', build_image)
     await message.answer_photo(types.InputFile(f'Image/Build Images/{str(message.chat.id)}.jpg'),
                                caption=f"{LOCALES_DATA[locale]['messages']['hero'].encode('cp1251').decode('utf8')}"
@@ -480,6 +516,9 @@ async def check_user_exists(message: types.Message):
         user_vars['max_attempt_count'] = 2
         user_vars['current_attempt_count'] = 0
         user_vars['command_buffer'] = {}
+        user_vars['requests_amount'] = 0
+        user_vars['timeout_timer'] = ""
+        user_vars['reset_timer'] = ""
         user_data_dict[user_id] = user_vars
         await message.answer(f'Welcome to the DOTA2 item build quiz, user {user_id}!')
 
@@ -532,6 +571,9 @@ def save_user_data():
     try:
         for user in list(user_data_dict.keys()):
             user_data_dict[user]['command_buffer'] = {}
+            user_data_dict[user]['timeout_timer'] = ""
+            user_data_dict[user]['reset_timer'] = ""
+            user_data_dict[user]['requests_amount'] = 0
         JsonTools.add_dict_to_json('JSON Files/users.json', user_data_dict, False)
         logging.log(logging.INFO, 'User data saved successfully')
     except Exception as e:
@@ -550,9 +592,18 @@ def main():
     try:
         if input("To update heroes and items data print /update or press enter to proceed\n") == "/update":
             ignore_existing = bool(input("Ignore existing?(Y/N)").lower() == "y")
+            if not os.path.exists(ITEMS_JSON_PATH):
+                open(ITEMS_JSON_PATH, 'x')
+                logging.log(logging.INFO, 'Items json file created')
+            if not os.path.exists(HEROES_JSON_PATH):
+                open(HEROES_JSON_PATH, 'x')
+                logging.log(logging.INFO, 'Heroes json file created')
             update_json(ITEMS_JSON_PATH, HEROES_JSON_PATH, ignore_existing)
             logging.log(logging.INFO, "JSON data Updated and loaded")
         else:
+            if not os.path.exists(ITEMS_JSON_PATH) or not os.path.exists(HEROES_JSON_PATH):
+                print('Could not find heroes and items json files. Quitting.')
+                return
             itemdict = JsonTools.load_dict_from_json(ITEMS_JSON_PATH)
             herodict = JsonTools.load_dict_from_json(HEROES_JSON_PATH)
             logging.log(logging.INFO, "JSON data Loaded")
@@ -564,6 +615,7 @@ def main():
         print('Bot stopped')
         save_user_data()
     except Exception as e:
+        print("Error launching bot, check logs for more info")
         logging.log(logging.CRITICAL, f"Error: {e}")
 
 
