@@ -393,8 +393,6 @@ async def get_build(message: types.Message):
         if user_data_dict[str(message.chat.id)]['reset_timer'] == "":
             user_data_dict[str(message.chat.id)]['reset_timer'] = Timer(REQUEST_TIMEOUT_RESET_TIME, reset_timeout, message)
             user_data_dict[str(message.chat.id)]['reset_timer'].start()
-        else:
-            user_data_dict[str(message.chat.id)]['reset_timer'].cancel()
     except Exception as e:
         user_data_dict[str(message.chat.id)]['current_score'] -=\
             100 * max(1, user_data_dict[str(message.chat.id)]['current_attempt_count'])
